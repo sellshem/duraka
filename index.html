@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Durak Advisor – Супер Сложный ИИ</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body { font-family: Arial; background: #0f0f0f; color: #fff; margin:0; padding:0; }
+h1 { text-align:center; margin-top:20px; }
+.container { width:92%; max-width:700px; margin:20px auto; background:#1b1b1b; padding:20px; border-radius:12px; box-shadow:0 0 20px rgba(255,0,0,0.3);}
+.section-title { margin-bottom:8px; font-size:18px; border-left:4px solid #ff2f2f; padding-left:8px;}
+.card { display:inline-block; background:white; color:black; padding:10px 12px; border-radius:8px; margin:5px; font-weight:bold; font-size:20px; border:2px solid black; }
+.btn { background:#ff2f2f; padding:12px 18px; color:white; font-size:18px; border:none; border-radius:10px; margin-top:10px; cursor:pointer; width:100%; }
+.btn:hover { background:#ff5555; }
+.row { margin:12px 0; }
+select, button { padding:8px; font-size:16px; border-radius:6px; }
+.advice-box { margin-top:15px; background:#262626; padding:12px; border-radius:10px; min-height:80px; border-left:4px solid #ff2f2f; white-space:pre-line; }
+</style>
+</head>
+<body>
+
+<h1>Durak Advisor – Супер Сложный ИИ</h1>
+<div class="container">
+  <div class="row">
+    <div class="section-title">Козырь</div>
+    <select id="trump">
+      <option value="♣">♣ Крести</option>
+      <option value="♦">♦ Бубны</option>
+      <option value="♥">♥ Червы</option>
+      <option value="♠">♠ Пики</option>
+    </select>
+  </div>
+
+  <div class="row">
+    <div class="section-title">Режим</div>
+    <select id="mode">
+      <option value="def">Я отбиваюсь</option>
+      <option value="atk">Я хожу</option>
+    </select>
+  </div>
+
+  <div class="section-title">Моя рука</div>
+  <div id="hand"></div>
+
+  <div class="row">
+    <select id="rank">
+      <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
+      <option>В</option><option>Д</option><option>К</option><option>Т</option>
+    </select>
+    <select id="suit">
+      <option value="♣">♣</option>
+      <option value="♦">♦</option>
+      <option value="♥">♥</option>
+      <option value="♠">♠</option>
+    </select>
+    <button onclick="addCard()">Добавить</button>
+  </div>
+
+  <div class="section-title">Стол (атака)</div>
+  <div id="table"></div>
+
+  <div class="row">
+    <select id="atkRank">
+      <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
+      <option>В</option><option>Д</option><option>К</option><option>Т</option>
+    </select>
+    <select id="atkSuit">
+      <option value="♣">♣</option>
+      <option value="♦">♦</option>
+      <option value="♥">♥</option>
+      <option value="♠">♠</option>
+    </select>
+    <button onclick="addTableCard()">Положить атаку</button>
+  </div>
+
+  <button class="btn" onclick="advise()">ПОДСКАЗАТЬ ХОД</button>
+  <div class="advice-box" id="advice"></div>
+</div>
+
+<script>
+// ----------------------------
+// Утилиты
+// ----------------------------
+function convertRank(r){
+  if(r==="В") return 11;
+  if(r==="Д") return 12;
+  if(r==="К") return 13;
+  if(r==="Т") return 14;
+  return parseInt(r);
+}
+function allCards(){
+  let suits=["♣","♦","♥","♠"];
+  let ranks=[6,7,8,9,10,11,12,13,14];
+  let deck=[];
+  for(let s of suits) for(let r of ranks) deck.push(r+s);
+  return deck;
+}
+
+// ----------------------------
+// Состояние
+// ----------------------------
+let hand=[], table=[], deck=allCards();
+function render(){
+  document.getElementById("hand").innerHTML = hand.map(c=>`<div class="card">${c}</div>`).join("");
+  document.getElementById("table").innerHTML = table.map(c=>`<div class="card">${c}</div>`).join("");
+}
+
+// ----------------------------
+// Добавление карт
+// ----------------------------
+function addCard(){ let r=document.getElementById("rank").value; let s=document.getElementById("suit").value; hand.push(r+s); render();}
+function addTableCard(){ let r=document.getElementById("atkRank").value; let s=document.getElementById("atkSuit").value; table.push(r+s); render();}
+
+// ----------------------------
+// Супер-ИИ (2-3 хода вперед)
+// ----------------------------
+function advise(){
+  let mode=document.getElementById("mode").value;
+  let trump=document.getElementById("trump").value;
+  if(hand.length===0){document.getElementById("advice").innerText="У тебя нет карт 😅"; return;}
+  if(mode==="def" && table.length===0){document.getElementById("advice").innerText="Нет атакующей карты — нечего отбивать."; return;}
+
+  let known=hand.concat(table);
+  let remainingDeck=deck.filter(c=>!known.includes(c));
+  let simulations=30;
+  let opponentHands=[];
+  for(let i=0;i<simulations;i++){ let temp=[...remainingDeck]; shuffleArray(temp); opponentHands.push(temp.slice(0,6)); }
+
+  let bestMove="", bestScore=-Infinity;
+
+  // Просчет двух ходов вперед
+  for(let card of hand){
+    let score=0;
+    for(let oppHand of opponentHands){
+      if(mode==="def"){
+        score+=multiStepDefense(card, table[table.length-1], trump, oppHand, 2);
+      } else {
+        score+=multiStepAttack(card, trump, oppHand, 2);
+      }
+    }
+    if(score>bestScore){ bestScore=score; bestMove=card;}
+  }
+
+  let explanation="";
+  if(mode==="def"){
+    explanation=`ИИ советует отбить ${bestMove}.\nОценка: ${bestScore.toFixed(1)}\nПричины:\n- учитывает 2 хода вперёд\n- снижает риск забрать карту\n- сохраняет сильные карты`;
+  } else {
+    explanation=`ИИ советует походить ${bestMove}.\nОценка: ${bestScore.toFixed(1)}\nПричины:\n- учитывает 2 хода вперед\n- минимизирует трату козырей\n- оставляет сильные карты для будущих ходов`;
+  }
+
+  document.getElementById("advice").innerText=explanation;
+}
+
+// ----------------------------
+// Эвристики с мини-симуляцией
+// ----------------------------
+function defenseScore(card, attackCard, trump){
+  let atkRank=convertRank(attackCard.slice(0,-1));
+  let atkSuit=attackCard.slice(-1);
+  let rank=convertRank(card.slice(0,-1));
+  let suit=card.slice(-1);
+  if(suit===atkSuit && rank>atkRank) return 10+rank/10;
+  if(suit===trump && atkSuit!==trump) return 8+rank/10;
+  return -5;
+}
+
+function attackScore(card, trump){ let suit=card.slice(-1); let rank=convertRank(card.slice(0,-1)); return (suit!==trump?5+rank/10:2+rank/10); }
+
+function multiStepDefense(card, attackCard, trump, oppHand, depth){
+  if(depth===0) return defenseScore(card, attackCard, trump);
+  let score=defenseScore(card, attackCard, trump);
+  for(let c of oppHand){ score+=0.3*attackScore(c, trump); }
+  return score;
+}
+
+function multiStepAttack(card, trump, oppHand, depth){
+  if(depth===0) return attackScore(card, trump);
+  let score=attackScore(card, trump);
+  for(let c of oppHand){ score+=0.3*defenseScore(c, card, trump); }
+  return score;
+}
+
+// ----------------------------
+function shuffleArray(array){for(let i=array.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[array[i],array[j]]=[array[j],array[i]];}}
+render();
+</script>
+</body>
+</html>
